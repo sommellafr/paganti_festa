@@ -27,9 +27,11 @@
             padding: 15px;
             border-bottom: 1px solid #333;
             z-index: 100;
+            display: flex;
+            gap: 10px;
         }
         input[type="text"] {
-            width: 100%;
+            flex-grow: 1;
             padding: 12px;
             border-radius: 8px;
             border: none;
@@ -37,6 +39,20 @@
             color: var(--text);
             font-size: 16px;
             box-sizing: border-box;
+        }
+        .btn-add {
+            background-color: var(--primary);
+            color: #000;
+            border: none;
+            border-radius: 8px;
+            padding: 0 15px;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .btn-add:active {
+            opacity: 0.8;
         }
         .guest-list {
             list-style: none;
@@ -65,9 +81,13 @@
             font-size: 12px;
             padding: 4px 8px;
             border-radius: 12px;
-            background: #444;
+            background: #444; 
+            color: #ccc;
+            cursor: pointer;
+            user-select: none;
         }
         .badge.paid { background: rgba(0, 230, 118, 0.2); color: var(--primary); }
+        .badge.org { background: rgba(33, 150, 243, 0.2); color: #2196f3; cursor: default; }
         .controls {
             display: flex;
             justify-content: space-between;
@@ -82,7 +102,6 @@
             font-size: 14px;
             color: var(--text-sec);
         }
-        /* Stile Toggle Switch per Mobile */
         .switch {
             position: relative;
             display: inline-block;
@@ -114,243 +133,290 @@
             color: #ff9800;
             font-style: italic;
         }
-        .done { opacity: 0.5; }
+        .not-coming {
+            font-size: 12px;
+            color: #f44336;
+            font-weight: bold;
+        }
+        .done { opacity: 0.5; border: 1px solid #333; }
+        .clear-cache-btn {
+            position: fixed;
+            bottom: 15px;
+            right: 15px;
+            background: #333;
+            color: #fff;
+            border: 1px solid #555;
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            opacity: 0.6;
+            z-index: 1000;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
 
     <header>
-        <input type="text" id="search" placeholder="Cerca nome o cognome..." onkeyup="filterList()">
+        <input type="text" id="search" placeholder="Cerca nome..." onkeyup="filterList()">
+        <button class="btn-add" onclick="addGuest()">+ Nuovo</button>
     </header>
 
     <ul class="guest-list" id="list"></ul>
+    
+    <button class="clear-cache-btn" onclick="forceReset()">Reset App</button>
 
     <script>
-        // INCOLLA QUI IL TESTO DEL TUO FILE CSV (Apri il CSV con Blocco Note, copia tutto e incollalo tra i due apici inversi ` )
-        // Assicurati che la prima riga sia: Nome,Email,Pagato,presenza,Gettone consegnato,Note
-        const csvData = `Nome;Email;Pagato;presenza;Gettone consegnato;Note
-Adele Bonacorsi;adele.bonacorsi@prometeia.com;TRUE;;;
-Alessandra Ripoli;alessandra.ripoli-ext@prometeia.com;TRUE;;;
-Alessandro Bitetto;alessandro.bitetto@prometeia.com;ORG;;;
-Alessandro Camilli;alessandro.camilli.1998@gmail.com;TRUE;;;
-Alessandro Frisicaro;alessandro.frisicaro@prometeia.com;TRUE;;;
-Alessandro Marziali;alessandro.marziali@prometeia.com;TRUE;;;
-Alessandro Re;alessandro.re@prometeia.com;FALSE;;;
-Alessia Martinelli;alessia.martinelli@prometeia.com;TRUE;;;
-Alessia Mastria;alessia.mastria@prometeiaadvisor.com;TRUE;;;
-Alessia Rossi;alessia.rossi@prometeia.com;TRUE;;;
-Alessio Durinzi;alessio.durinzi@prometeia.com;TRUE;;;
-Alessio Marchegiani;alessio.marchegiani@prometeia.com;FALSE;non viene;;
-Alessio Primerano;alessio.primerano@prometeia.com;ORG;;;
-Alexandra Delia Ciolan;alexandra.ciolan@prometeia.com;TRUE;;;
-Andrea Lugli;andrea.lugli@prometeia.com;TRUE;;;
-Andrea Sibilano;andrea.sibilano@prometeia.com;FALSE;non viene;;
-Anna Terzi;anna.terzi@prometeia.com;TRUE;;;
-Annalisa Fortunato;lisafortunato95@gmail.com;FALSE;;;
-Annamaria Romano;annamaria.romano@prometeia.com;TRUE;;;
-Antonio Cetani;antonio.cetani@prometeia.com;TRUE;;;
-Antonio Cutrone;antonio.cutrone@prometeia.com;TRUE;;;
-Antonio Fischetto;antonio.fischetto@unipolsai.it;TRUE;;;
-Antonio Lotito;antonio.lotito@prometeia.com;TRUE;;;
-Antonio Luca Alfarano;antonio.alfarano@prometeia.com;FALSE;non viene;;
-Antonio Mellino;antonio.mellino@prometeia.com;FALSE;non viene;;
-Arianna Bruno;arianna.bruno@prometeia.com;TRUE;;;
-Aurelia Lasaponara;aurelia.lasaponara@prometeia.com;TRUE;;;
-Aurora Brega;aurora.brega@prometeia.com;TRUE;;;
-Camilla Pacchiarini;camilla.pacchiarini@prometeia.com;TRUE;;;
-Camilla Pesaresi;camilla.pesaresi@prometeia.com;TRUE;;;
-Carola Daprile;carola.daprile@prometeia.com;TRUE;;;
-Cecilia bar;;FALSE;;;
-Chantal Amora;chantal.amora@prometeia.com;FALSE;;;
-Chiara Angileri;chiara.angileri@prometeia.com;TRUE;;;
-Chiara Rofrano;chiara.rofrano@prometeia.com;FALSE;non viene;;
-Chiara Storani;chiara.storani@prometeia.com;TRUE;;;
-Chiara Tricarico;chiara.tricarico@prometeia.com;TRUE;;;
-Christian Martellini;christian.martellini@gmail.com;TRUE;;;
-Christian Santori;christian.santori@prometeia.com;TRUE;;;
-Christian Severini;christian.severini@prometeia.com;TRUE;;;
-Christophe Ricco;christophe.ricco@prometeia.com;TRUE;;;
-Claudio Melasi;claudio.melasi@prometeia.com;FALSE;non viene;;
-Claudio Rocca;claudio.rocca@prometeia.com;TRUE;;;
-Costanza Pertosa;costanza.pertosa@prometeia.com;TRUE;;;
-Daniele D'Antonio;daniele.dantonio@prometeia.com;ORG;;;
-Davide Santangelo;davide.santangelo@prometeia.com;TRUE;;;
-Davide Zavattero;davide.zavattero@prometeia.com;TRUE;;;
-Domenico di Palo;domy898@yahoo.it;FALSE;;;
-Domenico Gualano;domenico.gualano@prometeia.com;TRUE;;;
-Domenico Magliozzi;;TRUE;;;
-Domenico Manuardi;domenico.manuardi@prometeia.com;TRUE;;;
-Edoardo Senese;edoardo.senese-ext@prometeia.com;TRUE;;;
-Edoardo Tinarelli;edoardo.tinarelli@prometeia.com;TRUE;;;
-Edoardo Zucca;edoardo.zucca@prometeia.com;TRUE;;;
-Eduart Mustafa;eduart.mustafa@prometeia.com;TRUE;;;
-Elina Folcarelli;elina.folcarelli@prometeia.com;TRUE;;;
-Elisa Botteghi;elisa.botteghi@prometeia.com;TRUE;;;
-Elisabetta Frisco;elisabetta.frisco@prometeia.com;TRUE;;;
-Emanuele Barrano;emanuele.barrano@prometeia.com;TRUE;;;
-Enrico Agostini;enrico.agostini-ext@prometeia.com;TRUE;;;
-Enrico Mazzini;enrico.mazzini@prometeia.com;TRUE;;;
-Enrico Schiaratura;enrico.schiaratura@prometeia.com;TRUE;;;
-Federico Antoniani;federico.antoniani@prometeia.com;TRUE;;;
-Federico Pellegrini;federico.pellegrini@prometeia.com;FALSE;;;
-Federico Poletti;federico.poletti@prometeiaadvisor.com;TRUE;;;
-Filippo Clo;filippo.clo@prometeia.com;TRUE;;;
-Flavia Iozzia;flavia.iozzia@prometeia.com;TRUE;;;
-Florencia Kuljis;florencia.kuljis@prometeia.com;FALSE;non viene;;
-Francesca Palmas;francesca.palmas@unipolsai.it;TRUE;;;
-Francesco Frau;;TRUE;;;
-Francesco Sommella;francesco.sommella@prometeia.com;ORG;;;
-Francisco Oviedo;francisco.oviedo@prometeia.com;TRUE;;;
-Gabriele Gioia;gabriele.gioia@prometeia.com;TRUE;;;
-Gabriele Lecis;gabriele.lecis@prometeia.com;TRUE;;;
-Giacomo Accursi;giacomo.accursi@prometeia.com;TRUE;;;
-Giacomo Neri;giacomo.neri@prometeia.com;TRUE;;;
-Giada Fiocchi;giada.fiocchi@prometeia.com;TRUE;;;
-Giada Piacentini;giada.piacentini@prometeia.com;TRUE;;;
-Giona Bianchi;giona.bianchi@prometeia.com;TRUE;;;
-Giovanni Cozza;giovanni.cozza@prometeia.com;TRUE;;;
-Giovanni Menozzi;giovanni.menozzi@prometeia.com;TRUE;;;
-Giovanni Taranto;giovanni.taranto@prometeia.com;TRUE;;;
-Giulia Rinaldi;giulia.rinaldi@prometeia.com;TRUE;;;
-Giulia Tognato;giulia.tognato@prometeiaadvisor.com;TRUE;;;
-Giuseppina Rainone;giuseppina.rainone@prometeia.com;FALSE;;;
-Gloria Zambelli;gloria.zambelli@prometeia.com;TRUE;;;
-Graziana Colonna;graziana.colonna@prometeia.com;TRUE;;;
-Guglielmo Segato;guglielmo.segato@prometeia.com;TRUE;;;
-Houssem Bouchareb;houssem.bouchareb@prometeia.com;TRUE;;;
-Jessica Grandis;jessica.grandis@prometeia.com;TRUE;;;
-Laura Pensavecchia;laura.pensavecchia@prometeia.com;TRUE;;;
-Livio Zaccarelli;;TRUE;;;
-Loredana Ribatto;loredana.ribatto@prometeia.com;TRUE;;;
-Luca Dell'anna;dellanna.luca.93@gmail.com;TRUE;;;
-Luca Righi;luca.righi@prometeia.com;TRUE;;;
-Luca Serafino;Luca.serafino@prometeia.com;TRUE;;;
-Luca Stefanelli;luca.stefanelli@prometeia.com;TRUE;;;
-Luigi Maiese;Luigi.maiese@prometeia.com;TRUE;;;
-Luigi Spione;luigi.spione@prometeia.com;TRUE;;;
-Marco Baldassari;marco.baldassari@prometeia.com;FALSE;;;
-Marco Cuce;marco.cuce@prometeia.com;TRUE;;;
-Marco Dall'Aglio;marco.dallaglio@prometeia.com;TRUE;;;
-Marco Romano;marco.romano@prometeia.com;FALSE;;;
-Marco Vecchi;marco.vecchi@prometeia.com;TRUE;;;
-Margherita Gaddini;margherita.gaddini@prometeia.com;TRUE;;;
-Marisa Morgillo;marisa.morgillo@prometeia.com;TRUE;;;
-Marius Tuzla;marius.tuzla@prometeia.com;FALSE;;;
-Martina Orru;martina.orru@prometeia.com;ORG;;;
-Matteo Castoro;matteo.castoro@prometeia.com;TRUE;;;
-Matteo Da Rin D'Iseppo;matteo.darindiseppo@prometeia.com;TRUE;;;
-Mattia Dallacasa;mattia.dallacasa@prometeia.com;FALSE;;;
-Mattia Pascal La Rosa;mattiapascal.larosa@prometeia.com;ORG;;;
-Mattia Veneroso;mattia.veneroso@prometeia.com;FALSE;;;
-Mauro Volpi;mauro.volpi@prometeia.com;TRUE;;;
-Michele Paolone;michele.paolone@prometeia.com;TRUE;;;
-Mirko Meloni;mirko.meloni@prometeia.com;TRUE;;;
-Nicola De Donno;nicola.dedonno@prometeia.com;TRUE;;;
-Nicola Incampo;nicola.incampo@prometeia.com;TRUE;;;
-Nicola Pio De Pilla;nicola.depilla@prometeia.com;TRUE;;;
-Nuri Can Ozkan;nuri.ozkan@prometeia.com;FALSE;;;
-Orazio Arena;orazio.arena@prometeia.com;TRUE;;;
-Paola Ferraboschi;paola.ferraboschi@prometeia.com;TRUE;;;
-Paolo Fontanari;paolo.fontanari@prometeia.com;TRUE;;;
-Paolo Gigante;paolo.gigante@prometeia.com;TRUE;;;
-Pietro Gheduzzi;pietro.gheduzzi@prometeia.com;TRUE;;;
-Quirico A. Porcu;quirico.porcu@prometeia.com;TRUE;;;
-Riccardo Draghetti;Riccardo.draghetti@prometeia.com;TRUE;;;
-Riccardo Monducci;riccardo.monducci@prometeia.com;TRUE;;;
-Riccardo Spica;riccardo.spica@prometeia.com;FALSE;;;
-Riccardo Ventura;riccardo.ventura@prometeia.com;TRUE;;;
-Roberta Clementucci;roberta.clementucci@prometeia.com;TRUE;;;
-Ronalda Halili;ronalda.halili@prometeia.com;TRUE;;;
-Rosa Bertoletti;rosa.bertoletti@prometeia.com;TRUE;;;
-Rossella Donadio;rossella.donadio@prometeia.com;TRUE;;;
-Sara Cappelli;sara.cappelli@prometeiaadvisor.com;TRUE;;;
-Serena Cesarano;serena.cesarano@prometeia.com;ORG;;;
-Serena Marini;serena.marini@prometeia.com;TRUE;;;
-Simone Aufiero;simone.aufiero@prometeia.com;TRUE;;;
-Simone Cennamo;;FALSE;non viene;;
-Simone Cennamo 1;;FALSE;non viene;;
-Simone Patti;simone.patti@prometeia.com;TRUE;;;
-Stefania Mosca;stefania.mosca@prometeia.com;TRUE;;;
-Stefano Bolognini;stefano.bolognini@prometeia.com;TRUE;;;
-Stefano Furini;stefano.furini@prometeia.com;FALSE;;;
-Susanna Masoni;susanna.masoni@prometeia.com;FALSE;non viene;;
-Tiberio Gionta;tiberio.gionta@prometeia.com;TRUE;;;
-Tommaso Graziani;tommaso.graziani@prometeia.com;FALSE;;;
-Valentina Gallo;valentina.gallo@prometeia.com;TRUE;;;
-Valentina Salvi;valentina.salvi@prometeia.com;TRUE;;;
-Vasco Nobile;vasco.nobile@prometeia.com;TRUE;;;
-Viola Borzillo;viola.borzillo@prometeia.com;FALSE;non viene;;
-Angelo Muscia Masuzzo;angelo.muscia@prometeia.com;TRUE;;;
-Gabriele Careddu;gabriele.careddu@prometeia.com;FALSE;;;
-Diego Cisbani;diego.cisbani@prometeia.com;TRUE;;;
-Alexandru Onta;alexandru.onta@prometeia.com;TRUE;;;
-Daniela Belen Alsina;;TRUE;;;
-Emanuele Gullo;emanuele.gullo@prometeia.com;FALSE;;;
-Giacomo Pino;giacomo.pino@prometeia.com;TRUE;;;
-Pietro Longo;pietro.longo@prometeia.com;TRUE;;;
-Lorenzo Rapposelli;lorenzo.rapposelli@prometeia.com;FALSE;;;
-Antonio Rispoli;antonio.rispoli@prometeia.com;FALSE;;;
-Margherita Fabini;margherita.fabini@prometeia.com;FALSE;;;
-Irene Alterini;irene.alterini@prometeia.com;FALSE;;;
-Giulio Contino;giulio.contino@prometeia.com;TRUE;;;
-Alessandro Lapesa;alessandro.lapesa@prometeia.com;TRUE;;;
-Fabio Bagazzi;;TRUE;;;
-Luca Brandimarti;;TRUE;;;
-Giuseppe Amico;;TRUE;;;
-Andrea Boscolo;;TRUE;;;
-Riccardo Crescentini;;TRUE;;;
-Alberto Vigna;;TRUE;;;
-Teresa Majoli;;TRUE;;;
-Catalin Blaj;;TRUE;;;
-Greta Roberti;;TRUE;;;
-Marco Rispoli;;TRUE;;;
-Michela Sandrini;;TRUE;;;
-Emanuele Tarsi;;TRUE;;;
-Ilaria Bolognesi;;TRUE;;;
-Cecilia Cocchi;;TRUE;;;
-Mattia Mazzetti;;TRUE;;;
-Martina Del Monte;;TRUE;;;
-Alessandro Pappalardo;;TRUE;;;
-Antonio Rispoli;;TRUE;;;
-Arianna Fiore;;TRUE;;;
-Enrico Diegoli;;TRUE;;;
-`;
+        const csvData = `Nome,Email,Pagato,presenza,Gettone consegnato,Note
+Adele Bonacorsi,adele.bonacorsi@prometeia.com,True,,,
+Alessandra Ripoli,alessandra.ripoli-ext@prometeia.com,True,,,
+Alessandro Bitetto,alessandro.bitetto@prometeia.com,ORG,,,
+Alessandro Camilli,alessandro.camilli.1998@gmail.com,True,,,
+Alessandro Frisicaro,alessandro.frisicaro@prometeia.com,True,,,
+Alessandro Marziali,alessandro.marziali@prometeia.com,True,,,
+Alessandro Re,alessandro.re@prometeia.com,False,,,
+Alessia Martinelli,alessia.martinelli@prometeia.com,True,,,
+Alessia Mastria,alessia.mastria@prometeiaadvisor.com,True,,,
+Alessia Rossi,alessia.rossi@prometeia.com,True,,,
+Alessio Durinzi,alessio.durinzi@prometeia.com,True,,,
+Alessio Marchegiani,alessio.marchegiani@prometeia.com,False,non viene,,
+Alessio Primerano,alessio.primerano@prometeia.com,ORG,,,
+Alexandra Delia Ciolan,alexandra.ciolan@prometeia.com,True,,,
+Andrea Lugli,andrea.lugli@prometeia.com,True,,,
+Andrea Sibilano,andrea.sibilano@prometeia.com,False,non viene,,
+Anna Terzi,anna.terzi@prometeia.com,True,,,
+Annalisa Fortunato,lisafortunato95@gmail.com,False,,,
+Annamaria Romano,annamaria.romano@prometeia.com,True,,,
+Antonio Cetani,antonio.cetani@prometeia.com,True,,,
+Antonio Cutrone,antonio.cutrone@prometeia.com,True,,,
+Antonio Fischetto,antonio.fischetto@unipolsai.it,True,,,
+Antonio Lotito,antonio.lotito@prometeia.com,True,,,
+Antonio Luca Alfarano,antonio.alfarano@prometeia.com,False,non viene,,
+Antonio Mellino,antonio.mellino@prometeia.com,False,non viene,,
+Arianna Bruno,arianna.bruno@prometeia.com,True,,,
+Aurelia Lasaponara,aurelia.lasaponara@prometeia.com,True,,,
+Aurora Brega,aurora.brega@prometeia.com,True,,,
+Camilla Pacchiarini,camilla.pacchiarini@prometeia.com,True,,,
+Camilla Pesaresi,camilla.pesaresi@prometeia.com,True,,,
+Carola Daprile,carola.daprile@prometeia.com,True,,,
+Cecilia bar,,False,,,
+Chantal Amora,chantal.amora@prometeia.com,False,,,
+Chiara Angileri,chiara.angileri@prometeia.com,True,,,
+Chiara Rofrano,chiara.rofrano@prometeia.com,False,non viene,,
+Chiara Storani,chiara.storani@prometeia.com,True,,,
+Chiara Tricarico,chiara.tricarico@prometeia.com,True,,,
+Christian Martellini,christian.martellini@gmail.com,True,,,
+Christian Santori,christian.santori@prometeia.com,True,,,
+Christian Severini,christian.severini@prometeia.com,True,,,
+Christophe Ricco,christophe.ricco@prometeia.com,True,,,
+Claudio Melasi,claudio.melasi@prometeia.com,False,non viene,,
+Claudio Rocca,claudio.rocca@prometeia.com,True,,,
+Costanza Pertosa,costanza.pertosa@prometeia.com,True,,,
+Daniele D'Antonio,daniele.dantonio@prometeia.com,ORG,,,
+Davide Santangelo,davide.santangelo@prometeia.com,True,,,
+Davide Zavattero,davide.zavattero@prometeia.com,True,,,
+Domenico di Palo,domy898@yahoo.it,False,,,
+Domenico Gualano,domenico.gualano@prometeia.com,True,,,
+Domenico Magliozzi,,True,,,
+Domenico Manuardi,domenico.manuardi@prometeia.com,True,,,
+Edoardo Senese,edoardo.senese-ext@prometeia.com,True,,,
+Edoardo Tinarelli,edoardo.tinarelli@prometeia.com,True,,,
+Edoardo Zucca,edoardo.zucca@prometeia.com,True,,,
+Eduart Mustafa,eduart.mustafa@prometeia.com,True,,,
+Elina Folcarelli,elina.folcarelli@prometeia.com,True,,,
+Elisa Botteghi,elisa.botteghi@prometeia.com,True,,,
+Elisabetta Frisco,elisabetta.frisco@prometeia.com,True,,,
+Emanuele Barrano,emanuele.barrano@prometeia.com,True,,,
+Enrico Agostini,enrico.agostini-ext@prometeia.com,True,,,
+Enrico Mazzini,enrico.mazzini@prometeia.com,True,,,
+Enrico Schiaratura,enrico.schiaratura@prometeia.com,True,,,
+Federico Antoniani,federico.antoniani@prometeia.com,True,,,
+Federico Pellegrini,federico.pellegrini@prometeia.com,False,,,
+Federico Poletti,federico.poletti@prometeiaadvisor.com,True,,,
+Filippo Clo,filippo.clo@prometeia.com,True,,,
+Flavia Iozzia,flavia.iozzia@prometeia.com,True,,,
+Florencia Kuljis,florencia.kuljis@prometeia.com,False,non viene,,
+Francesca Palmas,francesca.palmas@unipolsai.it,True,,,
+Francesco Frau,,True,,,
+Francesco Sommella,francesco.sommella@prometeia.com,ORG,,,
+Francisco Oviedo,francisco.oviedo@prometeia.com,True,,,
+Gabriele Gioia,gabriele.gioia@prometeia.com,True,,,
+Gabriele Lecis,gabriele.lecis@prometeia.com,True,,,
+Giacomo Accursi,giacomo.accursi@prometeia.com,True,,,
+Giacomo Neri,giacomo.neri@prometeia.com,True,,,
+Giada Fiocchi,giada.fiocchi@prometeia.com,True,,,
+Giada Piacentini,giada.piacentini@prometeia.com,True,,,
+Giona Bianchi,giona.bianchi@prometeia.com,True,,,
+Giovanni Cozza,giovanni.cozza@prometeia.com,True,,,
+Giovanni Menozzi,giovanni.menozzi@prometeia.com,True,,,
+Giovanni Taranto,giovanni.taranto@prometeia.com,True,,,
+Giulia Rinaldi,giulia.rinaldi@prometeia.com,True,,,
+Giulia Tognato,giulia.tognato@prometeiaadvisor.com,True,,,
+Giuseppina Rainone,giuseppina.rainone@prometeia.com,False,,,
+Gloria Zambelli,gloria.zambelli@prometeia.com,True,,,
+Graziana Colonna,graziana.colonna@prometeia.com,True,,,
+Guglielmo Segato,guglielmo.segato@prometeia.com,True,,,
+Houssem Bouchareb,houssem.bouchareb@prometeia.com,True,,,
+Jessica Grandis,jessica.grandis@prometeia.com,True,,,
+Laura Pensavecchia,laura.pensavecchia@prometeia.com,True,,,
+Livio Zaccarelli,,True,,,
+Loredana Ribatto,loredana.ribatto@prometeia.com,True,,,
+Luca Dell'anna,dellanna.luca.93@gmail.com,True,,,
+Luca Righi,luca.righi@prometeia.com,True,,,
+Luca Serafino,Luca.serafino@prometeia.com,True,,,
+Luca Stefanelli,luca.stefanelli@prometeia.com,True,,,
+Luigi Maiese,Luigi.maiese@prometeia.com,True,,,
+Luigi Spione,luigi.spione@prometeia.com,True,,,
+Marco Baldassari,marco.baldassari@prometeia.com,False,,,
+Marco Cuce,marco.cuce@prometeia.com,True,,,
+Marco Dall'Aglio,marco.dallaglio@prometeia.com,True,,,
+Marco Romano,marco.romano@prometeia.com,False,,,
+Marco Vecchi,marco.vecchi@prometeia.com,True,,,
+Margherita Gaddini,margherita.gaddini@prometeia.com,True,,,
+Marisa Morgillo,marisa.morgillo@prometeia.com,True,,,
+Marius Tuzla,marius.tuzla@prometeia.com,False,,,
+Martina Orru,martina.orru@prometeia.com,ORG,,,
+Matteo Castoro,matteo.castoro@prometeia.com,True,,,
+Matteo Da Rin D'Iseppo,matteo.darindiseppo@prometeia.com,True,,,
+Mattia Dallacasa,mattia.dallacasa@prometeia.com,False,,,
+Mattia Pascal La Rosa,mattiapascal.larosa@prometeia.com,ORG,,,
+Mattia Veneroso,mattia.veneroso@prometeia.com,False,,,
+Mauro Volpi,mauro.volpi@prometeia.com,True,,,
+Michele Paolone,michele.paolone@prometeia.com,True,,,
+Mirko Meloni,mirko.meloni@prometeia.com,True,,,
+Nicola De Donno,nicola.dedonno@prometeia.com,True,,,
+Nicola Incampo,nicola.incampo@prometeia.com,True,,,
+Nicola Pio De Pilla,nicola.depilla@prometeia.com,True,,,
+Nuri Can Ozkan,nuri.ozkan@prometeia.com,False,,,
+Orazio Arena,orazio.arena@prometeia.com,True,,,
+Paola Ferraboschi,paola.ferraboschi@prometeia.com,True,,,
+Paolo Fontanari,paolo.fontanari@prometeia.com,True,,,
+Paolo Gigante,paolo.gigante@prometeia.com,True,,,
+Pietro Gheduzzi,pietro.gheduzzi@prometeia.com,True,,,
+Quirico A. Porcu,quirico.porcu@prometeia.com,True,,,
+Riccardo Draghetti,Riccardo.draghetti@prometeia.com,True,,,
+Riccardo Monducci,riccardo.monducci@prometeia.com,True,,,
+Riccardo Spica,riccardo.spica@prometeia.com,False,,,
+Riccardo Ventura,riccardo.ventura@prometeia.com,True,,,
+Roberta Clementucci,roberta.clementucci@prometeia.com,True,,,
+Ronalda Halili,ronalda.halili@prometeia.com,True,,,
+Rosa Bertoletti,rosa.bertoletti@prometeia.com,True,,,
+Rossella Donadio,rossella.donadio@prometeia.com,True,,,
+Sara Cappelli,sara.cappelli@prometeiaadvisor.com,True,,,
+Serena Cesarano,serena.cesarano@prometeia.com,ORG,,,
+Serena Marini,serena.marini@prometeia.com,True,,,
+Simone Aufiero,simone.aufiero@prometeia.com,True,,,
+Simone Cennamo,,False,non viene,,
+Simone Cennamo 1,,False,non viene,,
+Simone Patti,simone.patti@prometeia.com,True,,,
+Stefania Mosca,stefania.mosca@prometeia.com,True,,,
+Stefano Bolognini,stefano.bolognini@prometeia.com,True,,,
+Stefano Furini,stefano.furini@prometeia.com,False,,,
+Susanna Masoni,susanna.masoni@prometeia.com,False,non viene,,
+Tiberio Gionta,tiberio.gionta@prometeia.com,True,,,
+Tommaso Graziani,tommaso.graziani@prometeia.com,False,,,
+Valentina Gallo,valentina.gallo@prometeia.com,True,,,
+Valentina Salvi,valentina.salvi@prometeia.com,True,,,
+Vasco Nobile,vasco.nobile@prometeia.com,True,,,
+Viola Borzillo,viola.borzillo@prometeia.com,False,non viene,,
+Angelo Muscia Masuzzo,angelo.muscia@prometeia.com,True,,,
+Gabriele Careddu,gabriele.careddu@prometeia.com,False,,,
+Diego Cisbani,diego.cisbani@prometeia.com,True,,,
+Alexandru Onta,alexandru.onta@prometeia.com,True,,,
+Daniela Belen Alsina,,True,,,
+Emanuele Gullo,emanuele.gullo@prometeia.com,False,,,
+Giacomo Pino,giacomo.pino@prometeia.com,True,,,
+Pietro Longo,pietro.longo@prometeia.com,True,,,
+Lorenzo Rapposelli,lorenzo.rapposelli@prometeia.com,False,,,
+Antonio Rispoli,antonio.rispoli@prometeia.com,False,,,
+Margherita Fabini,margherita.fabini@prometeia.com,False,,,
+Irene Alterini,irene.alterini@prometeia.com,False,,,
+Giulio Contino,giulio.contino@prometeia.com,True,,,
+Alessandro Lapesa,alessandro.lapesa@prometeia.com,True,,,
+Fabio Bagazzi,,True,,,
+Luca Brandimarti,,True,,,
+Giuseppe Amico,,True,,,
+Andrea Boscolo,,True,,,
+Riccardo Crescentini,,True,,,
+Alberto Vigna,,True,,,
+Teresa Majoli,,True,,,
+Catalin Blaj,,True,,,
+Greta Roberti,,True,,,
+Marco Rispoli,,True,,,
+Michela Sandrini,,True,,,
+Emanuele Tarsi,,True,,,
+Ilaria Bolognesi,,True,,,
+Cecilia Cocchi,,True,,,
+Mattia Mazzetti,,True,,,
+Martina Del Monte,,True,,,
+Alessandro Pappalardo,,True,,,
+Antonio Rispoli,,True,,,
+Arianna Fiore,,True,,,
+Enrico Diegoli,,True,,,`;
 
         let guests = [];
 
-        // Inizializzazione
         function init() {
-            // Se c'è un salvataggio precedente, usalo. Altrimenti parsiamo il CSV.
             const savedData = localStorage.getItem('guestListState');
             if (savedData) {
-                guests = JSON.parse(savedData);
+                const parsed = JSON.parse(savedData);
+                // CONTROL-CHECK: Se la lista in memoria ha meno di 100 nomi, è quella vecchia mockata.
+                // In questo modo la resettiamo forzatamente caricando i 185 veri.
+                if (parsed.length < 100) {
+                    localStorage.removeItem('guestListState');
+                    parseCSV(csvData);
+                } else {
+                    guests = parsed;
+                }
             } else {
                 parseCSV(csvData);
             }
             renderList();
         }
 
-        // Convertiamo il CSV in Array JS
         function parseCSV(data) {
             const lines = data.trim().split('\n');
-            const headers = lines[0].split(',');
-            
             for(let i = 1; i < lines.length; i++) {
                 const currentline = lines[i].split(',');
                 if(currentline[0]) {
+                    const isPaid = (currentline[2] === "True" || currentline[2] === "VERO" || currentline[2] === "true");
+                    const isOrg = (currentline[2] === "ORG");
+                    const notComing = (currentline[3] && currentline[3].trim().toLowerCase() === "non viene");
+                    
                     guests.push({
                         id: i,
                         nome: currentline[0] || "",
-                        pagato: currentline[2] === "TRUE" || currentline[2] === "true",
+                        pagato: isPaid,
+                        org: isOrg,
                         presenza: false,
                         gettone: false,
-                        note: currentline[5] || ""
+                        note: currentline[5] || "",
+                        nonViene: notComing
                     });
                 }
             }
         }
 
-        // Mostra la lista a schermo
+        function addGuest() {
+            const name = prompt("Inserisci il Nome e Cognome del ritardatario:");
+            if (name && name.trim() !== "") {
+                const newId = Date.now();
+                guests.unshift({
+                    id: newId,
+                    nome: name,
+                    pagato: false,
+                    org: false,
+                    presenza: true,
+                    gettone: false,
+                    note: "Aggiunto all'ingresso",
+                    nonViene: false
+                });
+                saveData();
+                document.getElementById('search').value = "";
+                renderList();
+            }
+        }
+
         function renderList(filterText = "") {
             const ul = document.getElementById('list');
             ul.innerHTML = '';
@@ -358,16 +424,22 @@ Enrico Diegoli;;TRUE;;;
             guests.forEach(guest => {
                 if(guest.nome.toLowerCase().includes(filterText.toLowerCase())) {
                     const isDone = guest.presenza && guest.gettone ? "done" : "";
-                    const paidBadge = guest.pagato ? '<span class="badge paid">PAGATO</span>' : '<span class="badge">NON PAGATO</span>';
-                    const notes = guest.note ? `<div class="note">⚠️ Note: ${guest.note}</div>` : '';
+                    
+                    let badgeHTML = `<span class="badge" onclick="togglePayment(${guest.id})">NON PAGATO</span>`;
+                    if (guest.pagato) badgeHTML = `<span class="badge paid" onclick="togglePayment(${guest.id})">PAGATO</span>`;
+                    if (guest.org) badgeHTML = '<span class="badge org">STAFF/ORG</span>';
+
+                    let notesHTML = '';
+                    if (guest.note) notesHTML += `<div class="note">⚠️ Note: ${guest.note}</div>`;
+                    if (guest.nonViene) notesHTML += `<div class="not-coming">❌ Segnato come: non viene</div>`;
 
                     ul.innerHTML += `
                         <li class="guest-card ${isDone}">
                             <div class="guest-header">
                                 <span class="guest-name">${guest.nome}</span>
-                                ${paidBadge}
+                                ${badgeHTML}
                             </div>
-                            ${notes}
+                            ${notesHTML}
                             <div class="controls">
                                 <label class="toggle-label">
                                     Presenza
@@ -390,24 +462,43 @@ Enrico Diegoli;;TRUE;;;
             });
         }
 
-        // Funzione di ricerca
         function filterList() {
             const search = document.getElementById('search').value;
             renderList(search);
         }
 
-        // Salva lo stato delle spunte e aggiorna la memoria del telefono
         function toggleState(id, field) {
             const guest = guests.find(g => g.id === id);
-            guest[field] = !guest[field];
-            localStorage.setItem('guestListState', JSON.stringify(guests));
-            
-            // Ricarica la lista per applicare l'effetto "opaco" se ha preso tutto
-            const search = document.getElementById('search').value;
-            renderList(search);
+            if (guest) {
+                guest[field] = !guest[field];
+                saveData();
+                const search = document.getElementById('search').value;
+                renderList(search);
+            }
         }
 
-        // Fai partire l'app
+        // Cliccando sul badge cambia lo stato del pagamento (Pagato <-> Non Pagato)
+        function togglePayment(id) {
+            const guest = guests.find(g => g.id === id);
+            if (guest && !guest.org) {
+                guest.pagato = !guest.pagato;
+                saveData();
+                const search = document.getElementById('search').value;
+                renderList(search);
+            }
+        }
+
+        function saveData() {
+            localStorage.setItem('guestListState', JSON.stringify(guests));
+        }
+
+        function forceReset() {
+            if(confirm("Vuoi azzerare tutte le spunte e ricaricare la lista iniziale da 185 persone?")) {
+                localStorage.clear();
+                location.reload();
+            }
+        }
+
         init();
     </script>
 </body>
