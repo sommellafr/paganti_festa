@@ -142,7 +142,6 @@
             return false;
         };
 
-        // LA TUA CONFIGURAZIONE REALE ED ESATTA
         const firebaseConfig = {
             apiKey: "AIzaSyA79NCczkKYkbu-LAagnFWdq79R51TJh3s",
             authDomain: "lista-paganti.firebaseapp.com",
@@ -400,9 +399,10 @@ Zucca Edoardo;edoardo.zucca@prometeia.com;TRUE;;;`;
             guests = [];
             const lines = data.trim().split('\n');
             for(let i = 1; i < lines.length; i++) {
-                const currentline = lines[i].split(',');
+                // MODIFICA QUI: ORA IL CODICE LEGGE IL PUNTO E VIRGOLA!
+                const currentline = lines[i].split(';'); 
                 if(currentline[0]) {
-                    const isPaid = (currentline[2] === "True" || currentline[2] === "VERO" || currentline[2] === "true");
+                    const isPaid = (currentline[2] === "True" || currentline[2] === "VERO" || currentline[2] === "true" || currentline[2] === "TRUE");
                     const isOrg = (currentline[2] === "ORG");
                     const notComing = (currentline[3] && currentline[3].trim().toLowerCase() === "non viene");
                     
