@@ -31,6 +31,7 @@
             padding: 8px;
             font-size: 13px;
             font-weight: bold;
+            z-index: 1000;
         }
         #status-bar.online {
             background-color: var(--primary);
@@ -122,7 +123,7 @@
 </head>
 <body>
 
-    <div id="status-bar">🔄 Connessione al Database in corso...</div>
+    <div id="status-bar">🔄 Connessione al Database cloud...</div>
 
     <header>
         <input type="text" id="search" placeholder="Cerca nome..." onkeyup="filterList()">
@@ -132,8 +133,24 @@
     <ul class="guest-list" id="list"></ul>
 
     <script>
+        window.onerror = function(message, source, lineno) {
+            const bar = document.getElementById('status-bar');
+            if (bar) {
+                bar.innerText = "🚨 ERRORE APPLICAZIONE: " + message + " (Linea " + lineno + ")";
+                bar.className = "error";
+            }
+            return false;
+        };
+
+        // LA TUA CONFIGURAZIONE REALE ED ESATTA
         const firebaseConfig = {
-            databaseURL: "https://pagantifesta-default-rtdb.europe-west1.firebasedatabase.app/"
+            apiKey: "AIzaSyA79NCczkKYkbu-LAagnFWdq79R51TJh3s",
+            authDomain: "lista-paganti.firebaseapp.com",
+            databaseURL: "https://lista-paganti-default-rtdb.europe-west1.firebasedatabase.app",
+            projectId: "lista-paganti",
+            storageBucket: "lista-paganti.firebasestorage.app",
+            messagingSenderId: "828692613563",
+            appId: "1:828692613563:web:76d614fe9624fdb3049c9e"
         };
         
         const csvData = `Nome,Email,Pagato,presenza,Gettone consegnato,Note
@@ -328,7 +345,6 @@ Enrico Diegoli,,True,,,`;
         let firebaseTimeout;
 
         function init() {
-            // Se Firebase non risponde in 2 secondi, carichiamo la lista in locale
             firebaseTimeout = setTimeout(() => {
                 if (!isOnline) {
                     setOfflineFallback("⚠️ Timeout Rete: App in Modalità Locale (No Sincronizzazione)");
@@ -339,7 +355,6 @@ Enrico Diegoli,,True,,,`;
                 firebase.initializeApp(firebaseConfig);
                 const database = firebase.database();
 
-                // IL PUNTO CRITICO: se le regole Firebase sono bloccate, qui scatta l'errore!
                 database.ref('guests').on('value', (snapshot) => {
                     clearTimeout(firebaseTimeout);
                     isOnline = true;
@@ -359,12 +374,11 @@ Enrico Diegoli,,True,,,`;
                     }
                     renderList();
                 }, (error) => {
-                    // SE FIREBASE RIFIUTA LA CONNESSIONE (es. regole sbagliate), STAMPIAMO L'ERRORE ROSSO
                     clearTimeout(firebaseTimeout);
-                    setOfflineFallback("⛔ ERRORE FIREBASE: Sblocca le Regole! (" + error.code + ")");
+                    setOfflineFallback("⛔ ERRORE REGOLE FIREBASE: Accorri a sbloccarle! (" + error.code + ")");
                 });
             } catch (e) {
-                setOfflineFallback("⚠️ Errore imprevisto - Modalità Locale Attiva");
+                setOfflineFallback("⚠️ Errore Inizializzazione - Modalità Locale Attiva");
             }
         }
 
