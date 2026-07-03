@@ -28,27 +28,26 @@
             background-color: #ff9800;
             color: #000;
             text-align: center;
-            padding: 8px;
-            font-size: 13px;
+            padding: 6px;
+            font-size: 12px;
             font-weight: bold;
             z-index: 1000;
         }
-        #status-bar.online {
-            background-color: var(--primary);
-        }
-        #status-bar.error {
-            background-color: #f44336;
-            color: white;
-        }
+        #status-bar.online { background-color: var(--primary); }
+        #status-bar.error { background-color: #f44336; color: white; }
+        
         header {
             position: sticky;
             top: 0;
             background-color: var(--bg);
-            padding: 15px;
+            padding: 15px 15px 0 15px;
             border-bottom: 1px solid #333;
             z-index: 100;
+        }
+        .header-top {
             display: flex;
             gap: 10px;
+            margin-bottom: 10px;
         }
         input[type="text"] {
             flex-grow: 1;
@@ -72,16 +71,70 @@
             white-space: nowrap;
         }
         .btn-add:active { opacity: 0.8; }
-        .guest-list { list-style: none; padding: 0; margin: 0; }
+        
+        /* Design dei TABS */
+        .tabs {
+            display: flex;
+            width: 100%;
+        }
+        .tab {
+            flex: 1;
+            padding: 12px;
+            background: transparent;
+            color: var(--text-sec);
+            border: none;
+            border-bottom: 3px solid transparent;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .tab.active {
+            color: var(--primary);
+            border-bottom: 3px solid var(--primary);
+        }
+
+        /* Design dei gruppi per Lettera (Accordion) */
+        .letter-group {
+            margin: 15px;
+            background-color: #1a1a1a;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .letter-group summary {
+            background-color: #252525;
+            color: var(--primary);
+            padding: 12px 15px;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+            list-style: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+        }
+        .letter-group summary::-webkit-details-marker { display: none; }
+        .letter-group summary::after {
+            content: "▼";
+            font-size: 12px;
+            color: #777;
+        }
+        .letter-group[open] summary::after { content: "▲"; color: var(--primary); }
+        .letter-group ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
         .guest-card {
             background-color: var(--surface);
-            margin: 10px 15px;
+            margin: 10px;
             padding: 15px;
             border-radius: 12px;
             display: flex;
             flex-direction: column;
             gap: 10px;
-            transition: all 0.2s ease;
         }
         .guest-header { display: flex; justify-content: space-between; align-items: center; }
         .guest-name { font-size: 18px; font-weight: bold; }
@@ -118,27 +171,33 @@
         input:checked + .slider:before { transform: translateX(16px); }
         .note { font-size: 12px; color: #ff9800; font-style: italic; }
         .not-coming { font-size: 12px; color: #f44336; font-weight: bold; }
-        .done { opacity: 0.3; border: 1px solid #2a2a2a; background-color: #161616; }
+        .done { opacity: 0.4; background-color: #161616; border: 1px solid #2a2a2a; }
+        
+        .empty-state { text-align: center; padding: 40px 20px; color: #666; font-style: italic; }
     </style>
 </head>
 <body>
 
-    <div id="status-bar">🔄 Connessione al Database cloud...</div>
+    <div id="status-bar">🔄 Inizializzazione...</div>
 
     <header>
-        <input type="text" id="search" placeholder="Cerca nome..." onkeyup="filterList()">
-        <button class="btn-add" onclick="addGuest()">+ Nuovo</button>
+        <div class="header-top">
+            <input type="text" id="search" placeholder="Cerca cognome o nome..." onkeyup="filterList()">
+            <button class="btn-add" onclick="addGuest()">+ Nuovo</button>
+        </div>
+        <div class="tabs">
+            <button id="tab-todo" class="tab active" onclick="setTab('todo')">Da Smarcare</button>
+            <button id="tab-done" class="tab" onclick="setTab('done')">Completati (Gettone)</button>
+        </div>
     </header>
 
-    <ul class="guest-list" id="list"></ul>
+    <div id="list-container"></div>
 
     <script>
         window.onerror = function(message, source, lineno) {
+            if (lineno === 0) return true; 
             const bar = document.getElementById('status-bar');
-            if (bar) {
-                bar.innerText = "🚨 ERRORE APPLICAZIONE: " + message + " (Linea " + lineno + ")";
-                bar.className = "error";
-            }
+            if (bar) { bar.innerText = "🚨 " + message; bar.className = "error"; }
             return false;
         };
 
@@ -342,12 +401,16 @@ Zucca Edoardo;edoardo.zucca@prometeia.com;TRUE;;;`;
         let guests = [];
         let isOnline = false;
         let firebaseTimeout;
+        let currentTab = 'todo'; // 'todo' o 'done'
 
         function init() {
+            if (typeof firebase === 'undefined') {
+                setOfflineFallback("⚠️ Rete bloccata: Modalità Offline Attiva");
+                return;
+            }
+
             firebaseTimeout = setTimeout(() => {
-                if (!isOnline) {
-                    setOfflineFallback("⚠️ Timeout Rete: App in Modalità Locale (No Sincronizzazione)");
-                }
+                if (!isOnline) { setOfflineFallback("⚠️ Timeout Rete: Modalità Offline (No Sync)"); }
             }, 2000);
 
             try {
@@ -359,7 +422,7 @@ Zucca Edoardo;edoardo.zucca@prometeia.com;TRUE;;;`;
                     isOnline = true;
                     
                     const statusBar = document.getElementById('status-bar');
-                    statusBar.innerText = "🟢 CLOUD SINCRONIZZATO (Tutti connessi)";
+                    statusBar.innerText = "🟢 CLOUD SINCRONIZZATO";
                     statusBar.className = "online";
 
                     const data = snapshot.val();
@@ -374,10 +437,10 @@ Zucca Edoardo;edoardo.zucca@prometeia.com;TRUE;;;`;
                     renderList();
                 }, (error) => {
                     clearTimeout(firebaseTimeout);
-                    setOfflineFallback("⛔ ERRORE REGOLE FIREBASE: Accorri a sbloccarle! (" + error.code + ")");
+                    setOfflineFallback("⛔ ERRORE FIREBASE: " + error.code);
                 });
             } catch (e) {
-                setOfflineFallback("⚠️ Errore Inizializzazione - Modalità Locale Attiva");
+                setOfflineFallback("⚠️ Errore Init - Modalità Offline Attiva");
             }
         }
 
@@ -387,11 +450,8 @@ Zucca Edoardo;edoardo.zucca@prometeia.com;TRUE;;;`;
             statusBar.className = "error";
             
             const saved = localStorage.getItem('localGuestBackup');
-            if (saved) {
-                guests = JSON.parse(saved);
-            } else {
-                parseCSV(csvData);
-            }
+            if (saved) { guests = JSON.parse(saved); } 
+            else { parseCSV(csvData); }
             renderList();
         }
 
@@ -399,7 +459,6 @@ Zucca Edoardo;edoardo.zucca@prometeia.com;TRUE;;;`;
             guests = [];
             const lines = data.trim().split('\n');
             for(let i = 1; i < lines.length; i++) {
-                // MODIFICA QUI: ORA IL CODICE LEGGE IL PUNTO E VIRGOLA!
                 const currentline = lines[i].split(';'); 
                 if(currentline[0]) {
                     const isPaid = (currentline[2] === "True" || currentline[2] === "VERO" || currentline[2] === "true" || currentline[2] === "TRUE");
@@ -421,7 +480,7 @@ Zucca Edoardo;edoardo.zucca@prometeia.com;TRUE;;;`;
         }
 
         function addGuest() {
-            const name = prompt("Inserisci il Nome e Cognome del ritardatario:");
+            const name = prompt("Inserisci il Cognome e Nome del ritardatario:");
             if (name && name.trim() !== "") {
                 const newId = Date.now();
                 const newGuest = {
@@ -435,9 +494,8 @@ Zucca Edoardo;edoardo.zucca@prometeia.com;TRUE;;;`;
                     nonViene: false
                 };
 
-                if (isOnline) {
-                    firebase.database().ref('guests/' + newId).set(newGuest);
-                } else {
+                if (isOnline) { firebase.database().ref('guests/' + newId).set(newGuest); } 
+                else {
                     guests.unshift(newGuest);
                     localStorage.setItem('localGuestBackup', JSON.stringify(guests));
                     renderList();
@@ -446,18 +504,54 @@ Zucca Edoardo;edoardo.zucca@prometeia.com;TRUE;;;`;
             }
         }
 
-        function renderList(filterText = "") {
-            const ul = document.getElementById('list');
-            ul.innerHTML = '';
+        function setTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.getElementById('tab-' + tab).classList.add('active');
+            renderList(document.getElementById('search').value);
+        }
 
-            const sortedGuests = [...guests].sort((a, b) => {
-                if (a.gettone && !b.gettone) return 1;
-                if (!a.gettone && b.gettone) return -1;
-                return 0;
+        function renderList(filterText = "") {
+            const container = document.getElementById('list-container');
+            container.innerHTML = '';
+
+            // 1. Filtriamo in base al testo cercato E al TAB selezionato
+            let filteredGuests = guests.filter(guest => {
+                const matchesSearch = guest.nome.toLowerCase().includes(filterText.toLowerCase());
+                const matchesTab = currentTab === 'done' ? guest.gettone : !guest.gettone;
+                return matchesSearch && matchesTab;
             });
 
-            sortedGuests.forEach(guest => {
-                if(guest.nome.toLowerCase().includes(filterText.toLowerCase())) {
+            // 2. Ordiniamo alfabeticamente
+            filteredGuests.sort((a, b) => a.nome.localeCompare(b.nome));
+
+            // 3. Raggruppiamo per Lettera Iniziale
+            const groups = {};
+            filteredGuests.forEach(guest => {
+                let letter = guest.nome.charAt(0).toUpperCase();
+                // Assicuriamoci che i nomi inizianti per numero vadano in un gruppo speciale "#"
+                if (!letter.match(/[A-Z]/)) letter = "#"; 
+                if (!groups[letter]) groups[letter] = [];
+                groups[letter].push(guest);
+            });
+
+            // Se non c'è nessuno nel tab o nella ricerca, mostra un messaggio
+            if (filteredGuests.length === 0) {
+                const msg = currentTab === 'todo' ? "Tutti smarcati o nessun risultato trovato." : "Nessuno ha ancora ricevuto il gettone.";
+                container.innerHTML = `<div class="empty-state">${msg}</div>`;
+                return;
+            }
+
+            // 4. Disegniamo i gruppi Accordion nell'HTML
+            for (const letter of Object.keys(groups).sort()) {
+                // <details open> fa sì che i gruppi siano aperti di default
+                let groupHTML = `
+                    <details class="letter-group" open>
+                        <summary>${letter} <span style="font-size:12px; font-weight:normal;">(${groups[letter].length})</span></summary>
+                        <ul>
+                `;
+
+                groups[letter].forEach(guest => {
                     const isDone = guest.gettone ? "done" : "";
                     
                     let badgeHTML = `<span class="badge" onclick="togglePayment(${guest.id})">NON PAGATO</span>`;
@@ -468,7 +562,7 @@ Zucca Edoardo;edoardo.zucca@prometeia.com;TRUE;;;`;
                     if (guest.note) notesHTML += `<div class="note">⚠️ Note: ${guest.note}</div>`;
                     if (guest.nonViene) notesHTML += `<div class="not-coming">❌ Segnato come: non viene</div>`;
 
-                    ul.innerHTML += `
+                    groupHTML += `
                         <li class="guest-card ${isDone}">
                             <div class="guest-header">
                                 <span class="guest-name">${guest.nome}</span>
@@ -493,8 +587,11 @@ Zucca Edoardo;edoardo.zucca@prometeia.com;TRUE;;;`;
                             </div>
                         </li>
                     `;
-                }
-            });
+                });
+                
+                groupHTML += `</ul></details>`;
+                container.innerHTML += groupHTML;
+            }
         }
 
         function filterList() {
