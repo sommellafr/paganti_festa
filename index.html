@@ -24,6 +24,21 @@
             padding: 0;
             padding-bottom: 80px;
         }
+        #status-bar {
+            background-color: #ff9800;
+            color: #000;
+            text-align: center;
+            padding: 8px;
+            font-size: 13px;
+            font-weight: bold;
+        }
+        #status-bar.online {
+            background-color: var(--primary);
+        }
+        #status-bar.error {
+            background-color: #f44336;
+            color: white;
+        }
         header {
             position: sticky;
             top: 0;
@@ -107,6 +122,8 @@
 </head>
 <body>
 
+    <div id="status-bar">🔄 Connessione al Database in corso...</div>
+
     <header>
         <input type="text" id="search" placeholder="Cerca nome..." onkeyup="filterList()">
         <button class="btn-add" onclick="addGuest()">+ Nuovo</button>
@@ -115,15 +132,10 @@
     <ul class="guest-list" id="list"></ul>
 
     <script>
-        // Collegamento al tuo database Firebase reale!
         const firebaseConfig = {
             databaseURL: "https://pagantifesta-default-rtdb.europe-west1.firebasedatabase.app/"
         };
         
-        firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
-
-        // Lista dei 185 partecipanti reali estratti dall'Excel
         const csvData = `Nome,Email,Pagato,presenza,Gettone consegnato,Note
 Adele Bonacorsi,adele.bonacorsi@prometeia.com,True,,,
 Alessandra Ripoli,alessandra.ripoli-ext@prometeia.com,True,,,
@@ -312,24 +324,66 @@ Arianna Fiore,,True,,,
 Enrico Diegoli,,True,,,`;
 
         let guests = [];
+        let isOnline = false;
+        let firebaseTimeout;
 
         function init() {
-            // Ascolta i dati da Firebase in tempo reale
-            database.ref('guests').on('value', (snapshot) => {
-                const data = snapshot.val();
-                if (data) {
-                    guests = Object.keys(data).map(key => data[key]);
-                } else {
-                    parseCSV(csvData);
-                    const initialData = {};
-                    guests.forEach(g => { initialData[g.id] = g; });
-                    database.ref('guests').set(initialData);
+            // Se Firebase non risponde in 2 secondi, carichiamo la lista in locale
+            firebaseTimeout = setTimeout(() => {
+                if (!isOnline) {
+                    setOfflineFallback("⚠️ Timeout Rete: App in Modalità Locale (No Sincronizzazione)");
                 }
-                renderList();
-            });
+            }, 2000);
+
+            try {
+                firebase.initializeApp(firebaseConfig);
+                const database = firebase.database();
+
+                // IL PUNTO CRITICO: se le regole Firebase sono bloccate, qui scatta l'errore!
+                database.ref('guests').on('value', (snapshot) => {
+                    clearTimeout(firebaseTimeout);
+                    isOnline = true;
+                    
+                    const statusBar = document.getElementById('status-bar');
+                    statusBar.innerText = "🟢 CLOUD SINCRONIZZATO (Tutti connessi)";
+                    statusBar.className = "online";
+
+                    const data = snapshot.val();
+                    if (data) {
+                        guests = Object.keys(data).map(key => data[key]);
+                    } else {
+                        parseCSV(csvData);
+                        const initialData = {};
+                        guests.forEach(g => { initialData[g.id] = g; });
+                        database.ref('guests').set(initialData);
+                    }
+                    renderList();
+                }, (error) => {
+                    // SE FIREBASE RIFIUTA LA CONNESSIONE (es. regole sbagliate), STAMPIAMO L'ERRORE ROSSO
+                    clearTimeout(firebaseTimeout);
+                    setOfflineFallback("⛔ ERRORE FIREBASE: Sblocca le Regole! (" + error.code + ")");
+                });
+            } catch (e) {
+                setOfflineFallback("⚠️ Errore imprevisto - Modalità Locale Attiva");
+            }
+        }
+
+        function setOfflineFallback(message) {
+            const statusBar = document.getElementById('status-bar');
+            statusBar.innerText = message;
+            statusBar.className = "error";
+            
+            const saved = localStorage.getItem('localGuestBackup');
+            if (saved) {
+                guests = JSON.parse(saved);
+            } else {
+                parseCSV(csvData);
+            }
+            renderList();
         }
 
         function parseCSV(data) {
+            guests = [];
             const lines = data.trim().split('\n');
             for(let i = 1; i < lines.length; i++) {
                 const currentline = lines[i].split(',');
@@ -366,7 +420,14 @@ Enrico Diegoli,,True,,,`;
                     note: "Aggiunto all'ingresso",
                     nonViene: false
                 };
-                database.ref('guests/' + newId).set(newGuest);
+
+                if (isOnline) {
+                    firebase.database().ref('guests/' + newId).set(newGuest);
+                } else {
+                    guests.unshift(newGuest);
+                    localStorage.setItem('localGuestBackup', JSON.stringify(guests));
+                    renderList();
+                }
                 document.getElementById('search').value = "";
             }
         }
@@ -375,18 +436,15 @@ Enrico Diegoli,,True,,,`;
             const ul = document.getElementById('list');
             ul.innerHTML = '';
 
-            // Ordina intelligentemente: chi ha completato tutto scivola in fondo alla lista!
             const sortedGuests = [...guests].sort((a, b) => {
-                const aDone = a.presenza && a.gettone;
-                const bDone = b.presenza && b.gettone;
-                if (aDone && !bDone) return 1;
-                if (!aDone && bDone) return -1;
+                if (a.gettone && !b.gettone) return 1;
+                if (!a.gettone && b.gettone) return -1;
                 return 0;
             });
 
             sortedGuests.forEach(guest => {
                 if(guest.nome.toLowerCase().includes(filterText.toLowerCase())) {
-                    const isDone = guest.presenza && guest.gettone ? "done" : "";
+                    const isDone = guest.gettone ? "done" : "";
                     
                     let badgeHTML = `<span class="badge" onclick="togglePayment(${guest.id})">NON PAGATO</span>`;
                     if (guest.pagato) badgeHTML = `<span class="badge paid" onclick="togglePayment(${guest.id})">PAGATO</span>`;
@@ -434,7 +492,13 @@ Enrico Diegoli,,True,,,`;
             const guest = guests.find(g => g.id == id);
             if (guest) {
                 const newValue = !guest[field];
-                database.ref('guests/' + id + '/' + field).set(newValue);
+                if (isOnline) {
+                    firebase.database().ref('guests/' + id + '/' + field).set(newValue);
+                } else {
+                    guest[field] = newValue;
+                    localStorage.setItem('localGuestBackup', JSON.stringify(guests));
+                    renderList(document.getElementById('search').value);
+                }
             }
         }
 
@@ -442,7 +506,13 @@ Enrico Diegoli,,True,,,`;
             const guest = guests.find(g => g.id == id);
             if (guest && !guest.org) {
                 const newValue = !guest.pagato;
-                database.ref('guests/' + id + '/pagato').set(newValue);
+                if (isOnline) {
+                    firebase.database().ref('guests/' + id + '/pagato').set(newValue);
+                } else {
+                    guest.pagato = newValue;
+                    localStorage.setItem('localGuestBackup', JSON.stringify(guests));
+                    renderList(document.getElementById('search').value);
+                }
             }
         }
 
